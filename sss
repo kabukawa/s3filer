@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# sss — S3 Filer unified launcher (bash: Linux / macOS / WSL / Git Bash)
+#
+# Windows PowerShell cannot run this extensionless file.
+# Use:  .\sss.ps1
+# cmd:  sss.cmd
+#
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+exec "$ROOT/s3filer.sh" "$@"

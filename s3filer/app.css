@@ -1,0 +1,355 @@
+/* S3 Filer — themeable dual-pane UI (colors from Textual Theme variables) */
+
+Screen {
+    background: $background;
+    color: $foreground;
+}
+
+#root {
+    height: 100%;
+    width: 100%;
+    layout: vertical;
+}
+
+#title-bar {
+    height: 1;
+    background: $title-bg;
+    color: $title-fg;
+    text-style: bold;
+    padding: 0 1;
+}
+
+#panes {
+    height: 1fr;
+    layout: horizontal;
+}
+
+.pane {
+    width: 1fr;
+    height: 100%;
+    /* Same border type for active/inactive to avoid 1-col reflow */
+    border: solid $pane-border;
+    background: $pane-bg;
+}
+
+.pane.active-pane {
+    border: solid $pane-active-border;
+}
+
+.pane-header {
+    height: 1;
+    background: $header-bg;
+    color: $header-fg;
+    text-style: bold;
+    padding: 0 1;
+}
+
+.pane-path {
+    height: 1;
+    background: $path-bg;
+    color: $path-fg;
+    padding: 0 1;
+    overflow-x: hidden;
+    text-overflow: clip;
+}
+
+.file-list {
+    height: 1fr;
+    border: none !important;
+    padding: 0 !important;
+    background: $list-bg;
+    color: $list-fg;
+    scrollbar-background: $list-bg;
+    scrollbar-color: $list-fg;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.file-list:focus {
+    background: $list-bg;
+    border: none !important;
+}
+
+.file-list > .option-list--option {
+    padding: 0 1;
+}
+
+.file-list > .option-list--option-highlighted {
+    background: $highlight-bg;
+    color: $highlight-fg;
+}
+
+.file-list > .option-list--option-hover {
+    background: $hover-bg;
+}
+
+.selected-mark {
+    color: $pane-active-border;
+    text-style: bold;
+}
+
+.dir-name {
+    color: $path-fg;
+    text-style: bold;
+}
+
+.pane-status {
+    height: 1;
+    background: $status-bg;
+    color: $status-fg;
+    padding: 0 1;
+}
+
+#cmdline {
+    height: 1;
+    background: $background;
+    color: $foreground;
+    padding: 0 1;
+}
+
+#func-bar {
+    height: 1;
+    background: $func-bg;
+    color: $func-fg;
+    padding: 0 1;
+}
+
+#func-bar .key {
+    color: $button-fg;
+    background: $button-bg;
+    text-style: bold;
+}
+
+#message {
+    height: 1;
+    background: $background;
+    color: $message-fg;
+    padding: 0 1;
+}
+
+/* Dialogs */
+ConfirmScreen, InputScreen, ProfileScreen, DestBrowserScreen, InfoScreen, HelpScreen, ThemeScreen, ArchiveBrowserScreen, ProgressScreen, SettingsScreen {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.55);
+}
+
+#settings-list, #pick-list, #vcmd-list {
+    height: 12;
+    min-height: 8;
+    background: $background;
+    color: $foreground;
+}
+
+ViewerCommandsScreen {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.55);
+}
+
+.progress-dialog {
+    width: 60;
+    max-width: 90%;
+    min-height: 8;
+}
+
+#prog-count {
+    text-align: center;
+    text-style: bold;
+    color: $accent;
+    margin: 1 0;
+}
+
+#prog-detail {
+    text-align: center;
+    color: $foreground;
+    max-height: 4;
+}
+
+#arc-list {
+    height: 1fr;
+    min-height: 10;
+    background: $background;
+    color: $foreground;
+}
+
+#arc-meta {
+    height: 1;
+    color: $path-fg;
+    padding: 0 1;
+}
+
+.dialog {
+    width: 70;
+    max-width: 90%;
+    height: auto;
+    max-height: 90%;
+    border: tall $dialog-border;
+    background: $dialog-bg;
+    color: $foreground;
+    padding: 1 2;
+}
+
+.dialog-title {
+    text-style: bold;
+    color: $dialog-title-fg;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+.dialog Input {
+    margin: 1 0;
+    background: $background;
+    color: $foreground;
+    border: solid $pane-border;
+}
+
+.dialog-buttons {
+    margin-top: 1;
+    align: center middle;
+    height: auto;
+    layout: horizontal;
+}
+
+.dialog-buttons Button {
+    margin: 0 1;
+    min-width: 10;
+}
+
+Button {
+    background: $button-bg;
+    color: $button-fg;
+    border: none;
+}
+
+Button:hover {
+    background: $accent;
+}
+
+Button.-primary {
+    background: $accent;
+    color: $background;
+}
+
+#viewer {
+    background: $viewer-bg;
+    color: $viewer-fg;
+    height: 100%;
+    width: 100%;
+}
+
+#viewer-header {
+    height: 1;
+    background: $header-bg;
+    color: $header-fg;
+    padding: 0 1;
+    dock: top;
+}
+
+#viewer-body {
+    height: 1fr;
+    background: $viewer-bg;
+    color: $viewer-fg;
+    padding: 0 1;
+    scrollbar-gutter: stable;
+}
+
+#viewer-body:focus {
+    background: $viewer-bg;
+}
+
+#viewer-text {
+    width: auto;
+    height: auto;
+    color: $viewer-fg;
+    background: $viewer-bg;
+    padding: 0 1;
+}
+
+#tree-list, #dest-list {
+    height: 16;
+    min-height: 8;
+    background: $background;
+    color: $path-fg;
+}
+
+.dest-dialog {
+    width: 78;
+    max-width: 96%;
+    height: 80%;
+    max-height: 30;
+    layout: vertical;
+}
+
+#dest-path {
+    background: $path-bg;
+    color: $path-fg;
+    padding: 0 1;
+    height: 1;
+}
+
+#dest-filter-input {
+    margin: 0 0 1 0;
+    background: $background;
+    color: $foreground;
+    border: solid $pane-border;
+}
+
+#dest-list {
+    height: 1fr;
+    min-height: 10;
+}
+
+#info-body {
+    height: auto;
+    max-height: 20;
+    background: $background;
+    color: $foreground;
+    padding: 1;
+}
+
+/* Help: fixed dialog height so body can scroll */
+.help-dialog {
+    width: 72;
+    max-width: 95%;
+    height: 80%;
+    max-height: 28;
+    layout: vertical;
+}
+
+#help-body {
+    height: 1fr;
+    background: $background;
+    color: $foreground;
+    padding: 0 1;
+    scrollbar-gutter: stable;
+}
+
+#help-body:focus {
+    background: $background;
+}
+
+#help-text {
+    width: auto;
+    height: auto;
+    color: $foreground;
+}
+
+.dialog-hint {
+    height: 1;
+    color: $path-fg;
+    text-align: center;
+    margin-top: 0;
+}
+
+#profile-list, #theme-list {
+    height: 12;
+    background: $background;
+    color: $foreground;
+}
+
+.error-text {
+    color: $error-fg;
+}
+
+.muted {
+    color: $status-fg;
+}

@@ -1130,7 +1130,7 @@ class HelpScreen(ModalScreen[None]):
         self.dismiss(None)
 
 
-class ViewerScreen(ModalScreen[Optional[str]]):
+class ViewerScreen(ModalScreen[Optional[str]], inherit_bindings=False):
     """
     Full-screen file viewer with keyboard scrolling and syntax highlight.
 
@@ -1368,8 +1368,22 @@ class ViewerScreen(ModalScreen[Optional[str]]):
             inp.value = self._query
             inp.cursor_position = len(self._query)
 
+    def _leave_search(self) -> None:
+        """Blur the find field so n/N and scroll keys reach the viewer."""
+        try:
+            inp = self._search_input()
+            if inp.has_focus or inp.can_focus:
+                inp.blur()
+            inp.can_focus = False
+        except Exception:
+            pass
+        try:
+            self._scroll().focus()
+        except Exception:
+            pass
+
     def action_find_next(self) -> None:
-        if self._search_focused() and not self._query:
+        if self._search_focused():
             return
         if not self._query:
             self.action_start_search()
@@ -1402,13 +1416,7 @@ class ViewerScreen(ModalScreen[Optional[str]]):
 
     def action_escape(self) -> None:
         if self._search_focused():
-            inp = self._search_input()
-            inp.blur()
-            inp.can_focus = False
-            try:
-                self._scroll().focus()
-            except Exception:
-                pass
+            self._leave_search()
             return
         if self._query:
             try:
@@ -1506,10 +1514,6 @@ class ViewerScreen(ModalScreen[Optional[str]]):
 
     @on(Input.Submitted, "#viewer-search")
     def on_viewer_search_submitted(self, event: Input.Submitted) -> None:
-        if self._query:
-            self.action_find_next()
-        else:
-            inp = self._search_input()
-            inp.blur()
-            inp.can_focus = False
-            self._scroll().focus()
+        # Enter confirms the query and returns keys to the viewer (n/N next/prev).
+        event.stop()
+        self._leave_search()

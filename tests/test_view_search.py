@@ -128,6 +128,22 @@ def test_viewer_search_ui() -> None:
             assert sc._match_index == 1
             assert "find:2/2" in sc._header_text()
 
+            # Repro: after /query Enter, n/N must move hits (not type into the box
+            # and not fire App mkdir).
+            sc._apply_search("alpha")
+            sc.action_start_search()
+            await pilot.pause(0.05)
+            await pilot.press("enter")
+            await pilot.pause(0.1)
+            assert not sc._search_focused()
+            assert sc._match_index == 0
+            await pilot.press("n")
+            await pilot.pause(0.1)
+            assert sc._match_index == 1
+            await pilot.press("N")
+            await pilot.pause(0.1)
+            assert sc._match_index == 0
+
     asyncio.run(main())
 
 

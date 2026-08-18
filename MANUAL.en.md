@@ -229,8 +229,8 @@ Substring search in the built-in viewer (including table mode). Case-insensitive
 | Key | Action |
 |-----|--------|
 | **/** or **Ctrl+F** | Focus the find field (incremental) |
-| **n** / **Enter** in the field | Next match |
-| **N** | Previous match |
+| **Enter** | Confirm find and return to the text (then **n** / **N**) |
+| **n** / **N** | Next / previous match |
 | **Esc** | Leave the field → clear highlights → close View |
 
 The header shows `find:2/5`. The current hit is bright yellow; others are darker yellow.

@@ -65,8 +65,8 @@ _MSG: dict[str, dict[str, str]] = {
     },
     "title_help": {"ja": "F1=ヘルプ  u=設定", "en": "F1=Help  u=Settings"},
     "func_bar": {
-        "ja": "F1 ヘルプ  v 表示  c/C コピー  m/M 移動  n 作成  x 実行  ! コマンド  o シェル  a 書庫  u 設定  d 削除  |  h/l ペイン  j/k 上下  Spc 選択  Q 終了",
-        "en": "F1 Help  v View  c/C Copy  m/M Move  n MkDir  x Exec  ! Cmd  o Shell  a Archive  u Settings  d Del  |  h/l Pane  j/k Up/Dn  Spc Select  Q Quit",
+        "ja": "F1 ヘルプ  v 表示  c/C コピー  m/M 移動  n 作成  x 実行  ! コマンド  o シェル  a 書庫  u 設定  d 削除  |  \\ ドライブ  h/l ペイン  j/k 上下  Spc 選択  Q 終了",
+        "en": "F1 Help  v View  c/C Copy  m/M Move  n MkDir  x Exec  ! Cmd  o Shell  a Archive  u Settings  d Del  |  \\ Drive  h/l Pane  j/k Up/Dn  Spc Select  Q Quit",
     },
     "help_title": {"ja": "S3 Filer ヘルプ", "en": "S3 Filer Help"},
     "help_hint": {
@@ -171,13 +171,26 @@ _MSG: dict[str, dict[str, str]] = {
         "ja": "S3 に切り替えました (profile={profile}){note}",
         "en": "Switched to S3 (profile={profile}){note}",
     },
+    "places_root": {"ja": "PC", "en": "This PC"},
+    "root_msg": {
+        "ja": "ルート: {path}{note}",
+        "en": "Root: {path}{note}",
+    },
+    "places_no_ops": {
+        "ja": "PC 一覧では作成・削除・名前変更・コピーはできません。ドライブや場所を開いてください",
+        "en": "Cannot copy, delete, rename, or mkdir on This PC — open a drive or place first",
+    },
+    "places_not_dest": {
+        "ja": "コピー/移動先に PC 一覧は指定できません。ドライブや場所を開いてください",
+        "en": "This PC is not a destination — open a drive or place first",
+    },
     "refreshed": {"ja": "再読込しました", "en": "Refreshed"},
     "refreshed_note": {"ja": "再読込 — {note}", "en": "Refreshed — {note}"},
     "goto_msg": {"ja": "移動: {path}{note}", "en": "Go to {path}{note}"},
     "goto_title": {"ja": "パス指定", "en": "Go to path"},
     "goto_prompt": {
-        "ja": "ローカルパスまたは s3://bucket/prefix",
-        "en": "Local path or s3://bucket/prefix",
+        "ja": "ローカルパス、thispc:、UNC、または s3://bucket/prefix",
+        "en": "Local path, thispc:, UNC, or s3://bucket/prefix",
     },
     "profile_set": {
         "ja": "AWS プロファイル: {name}{note}",
@@ -214,6 +227,14 @@ _MSG: dict[str, dict[str, str]] = {
         "en": "Not a known archive: {name}",
     },
     "view_failed": {"ja": "表示に失敗: {err}", "en": "View failed: {err}"},
+    "viewer_toggle_table": {
+        "ja": "表/テキスト",
+        "en": "Table/Raw",
+    },
+    "viewer_find_placeholder": {
+        "ja": "/ 検索   n/N 次/前   Esc",
+        "en": "/ find   n/N next/prev   Esc",
+    },
     "sixel_loading": {
         "ja": "画像を SIXEL で表示しています: {name}",
         "en": "Showing image via SIXEL: {name}",

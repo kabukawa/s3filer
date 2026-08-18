@@ -28,6 +28,8 @@ def entry_source_path(entry: FileEntry) -> str:
     """Full local path or s3 URI for an entry."""
     if entry.name == "..":
         raise ValueError("Cannot operate on ..")
+    if entry.target_path:
+        return entry.target_path
     if entry.location and entry.location.is_s3():
         if entry.parent_path in ("s3://", "s3:"):
             return f"s3://{entry.name}/"
@@ -165,6 +167,10 @@ class Operations:
         if name.startswith("/") or (len(name) >= 2 and name[1] == ":"):
             return OpResult(False, "Invalid folder name")
         try:
+            from .places import is_places_root
+
+            if location.is_local() and is_places_root(location.path):
+                return OpResult(False, "Cannot create a folder on This PC")
             if location.is_s3():
                 # S3: allow nested prefixes a/b/c
                 if "\\" in name:

@@ -23,6 +23,12 @@ from .browser import (
     navigate_into,
     refresh_pane,
 )
+from .places import (
+    PLACES_ROOT,
+    is_places_root,
+    is_volume_root,
+    volume_root_of,
+)
 from .config import DEFAULT_THEME, get_theme_name, set_theme_name, viewer_command_for
 from .i18n import set_runtime_language, t
 from .models import LocationKind, PaneState, PathLocation
@@ -135,7 +141,15 @@ def _format_row(entry, selected: bool, width: int = 60) -> str:
         mt = ""
     elif entry.is_dir:
         name = entry.name + "/"
-        size_s = "<DIR>"
+        kind = (entry.storage_class or "").upper()
+        if kind == "DRIVE":
+            size_s = "<DRV>"
+        elif kind == "CLOUD":
+            size_s = "<CLD>"
+        elif kind == "WSL":
+            size_s = "<WSL>"
+        else:
+            size_s = "<DIR>"
         mt = _fmt_mtime(entry.mtime)
     else:
         name = entry.name
@@ -223,6 +237,8 @@ class S3FilerApp(App[None]):
         Binding("ctrl+a", "select_toggle_all", "SelAll", show=False),
         Binding("backspace", "parent", "Up", show=False),
         Binding("ctrl+g", "goto", "GoTo", show=False),
+        Binding("backslash", "root", "Root", show=False),
+        Binding("yen", "root", "Root", show=False),
         Binding("ctrl+l", "to_local", "Local", show=False),
         Binding("ctrl+s", "to_s3", "S3", show=False),
         Binding("ctrl+r", "refresh", "Refresh", show=False),
@@ -649,6 +665,38 @@ class S3FilerApp(App[None]):
     def action_help(self) -> None:
         self.push_screen(HelpScreen())
 
+    def action_root(self) -> None:
+        """
+        ``\\`` — go to the current volume root, or (already there) the
+        Windows drive / Box / WSL list. On S3, jump to that local list.
+        """
+        state = self._active_state()
+        if state.location.is_s3() or is_places_root(state.location.path):
+            if os.name == "nt":
+                state.location = PathLocation(LocationKind.LOCAL, PLACES_ROOT)
+            else:
+                state.location = PathLocation(
+                    LocationKind.LOCAL, local_fs.normalize_local_path(os.sep)
+                )
+        elif os.name == "nt" and is_volume_root(state.location.path):
+            state.location = PathLocation(LocationKind.LOCAL, PLACES_ROOT)
+        else:
+            state.location = PathLocation(
+                LocationKind.LOCAL,
+                local_fs.normalize_local_path(volume_root_of(state.location.path)),
+            )
+        state.cursor = 0
+        state.selected.clear()
+        refresh_pane(state, self.s3)
+        self._render_pane(self.active)
+        self._focus_active()
+        note = f" ({state.error})" if state.error else ""
+        self._set_msg(t("root_msg", path=state.location.display(), note=note))
+
+    def _at_places_root(self) -> bool:
+        loc = self._active_state().location
+        return loc.is_local() and is_places_root(loc.path)
+
     def action_to_local(self) -> None:
         state = self._active_state()
         state.location = default_local_location()
@@ -788,6 +836,9 @@ class S3FilerApp(App[None]):
 
     def action_mkdir(self) -> None:
         loc = self._active_state().location
+        if loc.is_local() and is_places_root(loc.path):
+            self._set_msg(t("places_no_ops"), error=True)
+            return
         if loc.is_s3():
             title = t("mkdir_s3_title")
             prompt = t("mkdir_s3_prompt")
@@ -818,9 +869,17 @@ class S3FilerApp(App[None]):
 
         other = self._other_state()
         active = self._active_state()
-        if other.location.is_local() and _os.path.isdir(other.location.path):
+        if (
+            other.location.is_local()
+            and not is_places_root(other.location.path)
+            and _os.path.isdir(other.location.path)
+        ):
             return other.location.path
-        if active.location.is_local() and _os.path.isdir(active.location.path):
+        if (
+            active.location.is_local()
+            and not is_places_root(active.location.path)
+            and _os.path.isdir(active.location.path)
+        ):
             return active.location.path
         return _os.getcwd()
 
@@ -831,7 +890,11 @@ class S3FilerApp(App[None]):
         cwd = self._extract_cwd()
         # If active pane is local, prefer that path for the shell
         active = self._active_state().location
-        if active.is_local() and os.path.isdir(active.path):
+        if (
+            active.is_local()
+            and not is_places_root(active.path)
+            and os.path.isdir(active.path)
+        ):
             cwd = active.path
 
         shell_cmd = " ".join(resolve_interactive_shell())
@@ -982,6 +1045,9 @@ class S3FilerApp(App[None]):
         self._set_msg(t("archive_open_msg", name=entry.name, dest=extract_dir))
 
     def action_rename(self) -> None:
+        if self._at_places_root():
+            self._set_msg(t("places_no_ops"), error=True)
+            return
         self._sync_cursor_from_list()
         entry = self._active_state().current_entry()
         if not entry or entry.name == "..":
@@ -1006,6 +1072,9 @@ class S3FilerApp(App[None]):
         )
 
     def action_delete(self) -> None:
+        if self._at_places_root():
+            self._set_msg(t("places_no_ops"), error=True)
+            return
         self._sync_cursor_from_list()
         state = self._active_state()
         entries = state.selected_entries()
@@ -1087,9 +1156,15 @@ class S3FilerApp(App[None]):
 
     def _transfer(self, move: bool) -> None:
         """Copy/Move to the opposite pane (classic dual-pane)."""
+        if self._at_places_root():
+            self._set_msg(t("places_no_ops"), error=True)
+            return
         self._sync_cursor_from_list()
         src_state = self._active_state()
         dest_state = self._other_state()
+        if dest_state.location.is_local() and is_places_root(dest_state.location.path):
+            self._set_msg(t("places_not_dest"), error=True)
+            return
         entries = src_state.selected_entries()
         if not entries:
             self._set_msg(
@@ -1101,6 +1176,9 @@ class S3FilerApp(App[None]):
 
     def _transfer_via_tree(self, move: bool) -> None:
         """Copy/Move after browsing to a destination (DestBrowserScreen)."""
+        if self._at_places_root():
+            self._set_msg(t("places_no_ops"), error=True)
+            return
         self._sync_cursor_from_list()
         src_state = self._active_state()
         entries = src_state.selected_entries()
@@ -1143,6 +1221,9 @@ class S3FilerApp(App[None]):
                 dest = self._path_to_location(path)
             except Exception as e:
                 self._set_msg(t("invalid_dest", err=str(e)), error=True)
+                return
+            if dest.is_local() and is_places_root(dest.path):
+                self._set_msg(t("places_not_dest"), error=True)
                 return
             self._confirm_transfer(entries, dest, move, dest_label=path)
 

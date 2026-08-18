@@ -7,7 +7,7 @@ from typing import Optional
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, ScrollableContainer, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual import events
 from textual.widgets import Button, Input, Label, OptionList, Static
@@ -320,6 +320,7 @@ class DestBrowserScreen(ModalScreen[Optional[str]]):
       Esc           clear filter / blur input, or cancel
       s / g         confirm *current* directory as destination
       Tab           toggle Local <-> S3
+      \\            volume root / This PC (drives, Box, WSL)
       Ctrl+L        local bookmark/root
       Ctrl+S        S3 bookmark/root
     """
@@ -347,6 +348,8 @@ class DestBrowserScreen(ModalScreen[Optional[str]]):
         # Also allow 1/2 as unambiguous side switch
         Binding("1", "to_local", "Local", show=False),
         Binding("2", "to_s3", "S3", show=False),
+        Binding("backslash", "root", "Root", show=False),
+        Binding("yen", "root", "Root", show=False),
     ]
 
     def __init__(
@@ -439,7 +442,10 @@ class DestBrowserScreen(ModalScreen[Optional[str]]):
             if e.name == "..":
                 out.append(e)
                 continue
-            if q in e.name.casefold():
+            hay = e.name
+            if getattr(e, "target_path", None):
+                hay = f"{hay} {e.target_path}"
+            if q in hay.casefold():
                 out.append(e)
         return out
 
@@ -463,7 +469,7 @@ class DestBrowserScreen(ModalScreen[Optional[str]]):
             f"[{kind}] {self._location.display()}  ({n} dirs){err}"
         )
         self.query_one("#dest-hint", Static).update(
-            f"Enter/l: open  h/Bksp: parent  j/k: move  "
+            f"Enter/l: open  h/Bksp: parent  \\: drives  j/k: move  "
             f"Tab/1/2: Local↔S3  / filter  {self._confirm_label}  Esc: cancel"
         )
 
@@ -540,7 +546,61 @@ class DestBrowserScreen(ModalScreen[Optional[str]]):
         if self._filter_focused():
             # Let Input handle the character; do not confirm while typing
             return
+        from .places import is_places_root
+
+        if self._location.is_local() and is_places_root(self._location.path):
+            entry = self._current_entry()
+            target = getattr(entry, "target_path", None) if entry else None
+            if target:
+                self.dismiss(target)
+                return
+            self._error = "Select a drive or place first"
+            self._update_chrome()
+            return
         self.dismiss(self._location.path)
+
+    def action_root(self) -> None:
+        """``\\`` — volume root, then This PC (same as the main pane)."""
+        if self._filter_focused():
+            return
+        from .models import LocationKind, PathLocation
+        from .places import (
+            PLACES_ROOT,
+            is_places_root,
+            is_volume_root,
+            volume_root_of,
+        )
+        from . import local_fs
+        import os
+
+        loc = self._location
+        if loc.is_s3() or is_places_root(loc.path):
+            if os.name == "nt":
+                self._location = PathLocation(LocationKind.LOCAL, PLACES_ROOT)
+            else:
+                self._location = PathLocation(
+                    LocationKind.LOCAL, local_fs.normalize_local_path(os.sep)
+                )
+        elif os.name == "nt" and loc.is_local() and is_volume_root(loc.path):
+            self._location = PathLocation(LocationKind.LOCAL, PLACES_ROOT)
+        elif loc.is_local():
+            self._location = PathLocation(
+                LocationKind.LOCAL,
+                local_fs.normalize_local_path(volume_root_of(loc.path)),
+            )
+        else:
+            return
+        self._filter = ""
+        try:
+            self._filter_input().value = ""
+        except Exception:
+            pass
+        self._bookmark_current()
+        self._reload()
+        try:
+            self._list().focus()
+        except Exception:
+            pass
 
     def action_open_dir(self) -> None:
         from .browser import navigate_into
@@ -643,6 +703,9 @@ class DestBrowserScreen(ModalScreen[Optional[str]]):
                 return True
             if event.key == "2":
                 self.action_to_s3()
+                return True
+            if event.key in ("backslash", "yen"):
+                self.action_root()
                 return True
         return await super().handle_key(event)
 
@@ -1075,7 +1138,7 @@ class ViewerScreen(ModalScreen[Optional[str]]):
     """
 
     BINDINGS = [
-        Binding("escape", "close", "Close", show=False),
+        Binding("escape", "escape", "Close", show=False),
         Binding("q", "close", "Close", show=False),
         Binding("f3", "close", "Close", show=False),
         Binding("e", "edit", "Edit", show=False),
@@ -1089,6 +1152,16 @@ class ViewerScreen(ModalScreen[Optional[str]]):
         Binding("k", "scroll_up", "Up", show=False),
         Binding("space", "page_down", "PgDn", show=False),
         Binding("b", "page_up", "PgUp", show=False),
+        Binding("left", "scroll_left", "Left", show=False),
+        Binding("right", "scroll_right", "Right", show=False),
+        Binding("h", "scroll_left", "Left", show=False),
+        Binding("l", "scroll_right", "Right", show=False),
+        Binding("t", "toggle_table", "Table", show=False),
+        Binding("slash", "start_search", "Find", show=False),
+        Binding("ctrl+f", "start_search", "Find", show=False),
+        Binding("n", "find_next", "Next", show=False),
+        Binding("N", "find_prev", "Prev", show=False),
+        Binding("shift+n", "find_prev", "Prev", show=False),
     ]
 
     def __init__(
@@ -1116,12 +1189,24 @@ class ViewerScreen(ModalScreen[Optional[str]]):
         self._status_msg: Optional[str] = None
         self._lexer_name: Optional[str] = None
         self._syntax_theme: Optional[str] = None
+        self._table_data = None
+        self._table_mode = False
+        self._query = ""
+        self._matches: list = []
+        self._match_index = 0
+        self._reparse_table()
 
     def compose(self) -> ComposeResult:
         header = self._header_text()
         with Vertical(id="viewer"):
             yield Static(header, id="viewer-header")
-            with VerticalScroll(id="viewer-body", can_focus=True):
+            from .i18n import t
+
+            yield Input(
+                placeholder=t("viewer_find_placeholder"),
+                id="viewer-search",
+            )
+            with ScrollableContainer(id="viewer-body", can_focus=True):
                 yield Static(self._make_renderable(), id="viewer-text", expand=True)
             yield Static(self._footer_text(), id="func-bar")
 
@@ -1134,27 +1219,73 @@ class ViewerScreen(ModalScreen[Optional[str]]):
             return None
 
     def _footer_text(self) -> str:
+        from .i18n import t
+
         edit = "  |  e Edit" if self._edit_handler else ""
+        table = f"  |  t {t('viewer_toggle_table')}" if self._table_data else ""
         syn = self._syntax_theme or "?"
         return (
-            " [Esc/Q] Close  |  ↑↓/jk  PgUp/PgDn/Space  Home/End"
-            f"  |  syntax:{syn}{edit}"
+            " [Esc/Q] Close  |  / Find  n/N  ↑↓/jk  ←→/hl  PgUp/PgDn"
+            f"{table}  |  syntax:{syn}{edit}"
         )
 
     def _header_text(self) -> str:
         lang = f"  lang:{self._lexer_name}" if self._lexer_name else ""
         ui = self._resolve_app_theme() or ""
         ui_s = f"  theme:{ui}" if ui else ""
-        return f" View: {self._file_title}  {self._meta}{lang}{ui_s}"
+        table = ""
+        if self._table_data is not None:
+            from .view_table import delimiter_label
+
+            kind = delimiter_label(self._table_data.delimiter)
+            mode = "table" if self._table_mode else "raw"
+            table = f"  {kind}:{self._table_data.shape_label}  view:{mode}"
+        find = ""
+        if self._query:
+            if self._matches:
+                find = f"  find:{self._match_index + 1}/{len(self._matches)}"
+            else:
+                find = "  find:0"
+        return f" View: {self._file_title}  {self._meta}{lang}{table}{find}{ui_s}"
+
+    def _reparse_table(self) -> None:
+        from .view_table import parse_tabular, is_tabular_name
+
+        self._table_data = None
+        if self._is_binary or not is_tabular_name(self._file_title):
+            self._table_mode = False
+            return
+        self._table_data = parse_tabular(self._body, self._file_title)
+        if self._table_data is None:
+            self._table_mode = False
+        else:
+            self._table_mode = True
 
     def _make_renderable(self):
-        from .view_highlight import make_view_renderable
+        from .view_search import render_text_with_search
+        from .view_table import make_table_renderable
 
-        renderable, lexer, syntax_theme = make_view_renderable(
+        current = None
+        if self._matches and 0 <= self._match_index < len(self._matches):
+            current = self._matches[self._match_index]
+
+        if self._table_mode and self._table_data is not None:
+            self._lexer_name = "table"
+            self._syntax_theme = "table"
+            return make_table_renderable(
+                self._table_data,
+                app_theme=self._resolve_app_theme(),
+                query=self._query,
+                current_match=current,
+            )
+
+        renderable, lexer, syntax_theme = render_text_with_search(
             self._body,
             filename=self._file_title,
             is_binary=self._is_binary,
             app_theme=self._resolve_app_theme(),
+            matches=self._matches or None,
+            current_index=self._match_index,
         )
         self._lexer_name = lexer
         self._syntax_theme = syntax_theme
@@ -1168,12 +1299,125 @@ class ViewerScreen(ModalScreen[Optional[str]]):
     def on_mount(self) -> None:
         # Ensure lexer / syntax theme labels match the active UI theme
         self._app_theme = self._resolve_app_theme()
+        inp = self._search_input()
+        inp.can_focus = False
         self._refresh_content()
-        body = self.query_one("#viewer-body", VerticalScroll)
+        body = self.query_one("#viewer-body", ScrollableContainer)
         body.focus()
 
-    def _scroll(self) -> VerticalScroll:
-        return self.query_one("#viewer-body", VerticalScroll)
+    def _scroll(self) -> ScrollableContainer:
+        return self.query_one("#viewer-body", ScrollableContainer)
+
+    def _search_input(self) -> Input:
+        return self.query_one("#viewer-search", Input)
+
+    def _search_focused(self) -> bool:
+        try:
+            return self._search_input().has_focus
+        except Exception:
+            return False
+
+    def _recompute_matches(self) -> None:
+        from .view_search import find_table_matches, find_text_matches
+
+        q = self._query
+        if not q:
+            self._matches = []
+            self._match_index = 0
+            return
+        if self._table_mode and self._table_data is not None:
+            self._matches = find_table_matches(self._table_data, q)
+        else:
+            self._matches = find_text_matches(self._body, q)
+        if self._matches:
+            self._match_index = min(self._match_index, len(self._matches) - 1)
+        else:
+            self._match_index = 0
+
+    def _apply_search(self, query: str, *, reset_index: bool = True) -> None:
+        self._query = query
+        if reset_index:
+            self._match_index = 0
+        self._recompute_matches()
+        try:
+            self._refresh_content()
+            self._scroll_to_match()
+        except Exception:
+            pass
+
+    def _scroll_to_match(self) -> None:
+        if not self._matches:
+            return
+        m = self._matches[self._match_index]
+        if m.where in ("cell", "header"):
+            y = 0 if m.line < 0 else m.line + 2
+        else:
+            y = max(0, m.line)
+        try:
+            self._scroll().scroll_to(y=max(0, y - 2), animate=False)
+        except Exception:
+            pass
+
+    def action_start_search(self) -> None:
+        if self._search_focused():
+            return
+        inp = self._search_input()
+        inp.can_focus = True
+        inp.focus()
+        if self._query:
+            inp.value = self._query
+            inp.cursor_position = len(self._query)
+
+    def action_find_next(self) -> None:
+        if self._search_focused() and not self._query:
+            return
+        if not self._query:
+            self.action_start_search()
+            return
+        if not self._matches:
+            self._recompute_matches()
+            try:
+                self._refresh_content()
+            except Exception:
+                pass
+            return
+        self._match_index = (self._match_index + 1) % len(self._matches)
+        try:
+            self._refresh_content()
+            self._scroll_to_match()
+        except Exception:
+            pass
+
+    def action_find_prev(self) -> None:
+        if self._search_focused():
+            return
+        if not self._query or not self._matches:
+            return
+        self._match_index = (self._match_index - 1) % len(self._matches)
+        try:
+            self._refresh_content()
+            self._scroll_to_match()
+        except Exception:
+            pass
+
+    def action_escape(self) -> None:
+        if self._search_focused():
+            inp = self._search_input()
+            inp.blur()
+            inp.can_focus = False
+            try:
+                self._scroll().focus()
+            except Exception:
+                pass
+            return
+        if self._query:
+            try:
+                self._search_input().value = ""
+            except Exception:
+                pass
+            self._apply_search("", reset_index=True)
+            return
+        self.dismiss(self._status_msg)
 
     def action_close(self) -> None:
         self.dismiss(self._status_msg)
@@ -1207,7 +1451,10 @@ class ViewerScreen(ModalScreen[Optional[str]]):
             flag = " BINARY" if self._is_binary else ""
             changed = " saved" if getattr(result, "changed", False) else " unchanged"
             self._meta = f"[{enc}] {size} bytes{flag}{changed}"
+            self._reparse_table()
+            self._recompute_matches()
             self._refresh_content()
+            self._scroll_to_match()
         elif not ok:
             # Show error in header briefly
             self.query_one("#viewer-header", Static).update(
@@ -1233,3 +1480,36 @@ class ViewerScreen(ModalScreen[Optional[str]]):
 
     def action_scroll_end(self) -> None:
         self._scroll().scroll_end(animate=False)
+
+    def action_scroll_left(self) -> None:
+        self._scroll().scroll_relative(x=-8, animate=False)
+
+    def action_scroll_right(self) -> None:
+        self._scroll().scroll_relative(x=8, animate=False)
+
+    def action_toggle_table(self) -> None:
+        if not self._table_data:
+            return
+        if self._search_focused():
+            return
+        self._table_mode = not self._table_mode
+        self._recompute_matches()
+        self._refresh_content()
+        self._scroll_to_match()
+
+    @on(Input.Changed, "#viewer-search")
+    def on_viewer_search_changed(self, event: Input.Changed) -> None:
+        q = event.value or ""
+        if q == self._query:
+            return
+        self._apply_search(q, reset_index=True)
+
+    @on(Input.Submitted, "#viewer-search")
+    def on_viewer_search_submitted(self, event: Input.Submitted) -> None:
+        if self._query:
+            self.action_find_next()
+        else:
+            inp = self._search_input()
+            inp.blur()
+            inp.can_focus = False
+            self._scroll().focus()

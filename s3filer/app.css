@@ -244,6 +244,14 @@ Button.-primary {
     dock: top;
 }
 
+#viewer-search {
+    height: 3;
+    margin: 0;
+    background: $header-bg;
+    color: $header-fg;
+    border: solid $pane-border;
+}
+
 #viewer-body {
     height: 1fr;
     background: $viewer-bg;

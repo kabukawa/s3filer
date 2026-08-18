@@ -10,9 +10,26 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from .models import FileEntry, FileInfo, LocationKind, PathLocation
+from .places import (
+    PLACES_ROOT,
+    is_places_root,
+    is_unc_path,
+    list_places_entries,
+    normalize_unc,
+)
 
 
 def normalize_local_path(path: str) -> str:
+    path = (path or "").strip()
+    if is_places_root(path) or (os.name == "nt" and path in ("\\", "/")):
+        return PLACES_ROOT if os.name == "nt" else os.path.abspath(os.sep)
+    if os.name == "nt" and len(path) == 2 and path[1] == ":":
+        path = path + "\\"
+    if path.startswith("~"):
+        path = str(Path(path).expanduser())
+    if is_unc_path(path):
+        # resolve() on WSL/cloud UNC can hang or fail; keep the path as-is
+        return normalize_unc(path)
     p = Path(path).expanduser()
     try:
         p = p.resolve()
@@ -22,7 +39,14 @@ def normalize_local_path(path: str) -> str:
 
 
 def list_dir(location: PathLocation) -> list[FileEntry]:
+    if is_places_root(location.path):
+        if os.name != "nt":
+            location = PathLocation(LocationKind.LOCAL, os.path.abspath(os.sep))
+        else:
+            return list_places_entries()
     path = normalize_local_path(location.path)
+    if is_places_root(path):
+        return list_places_entries()
     entries: list[FileEntry] = []
 
     parent = str(Path(path).parent)

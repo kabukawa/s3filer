@@ -59,8 +59,8 @@ Help / View scroll
   e                    Edit with $EDITOR / $VISUAL (then reload View)
   t                    CSV/TSV: toggle table ↔ raw text
   /  or  Ctrl+F        Find text (incremental)
-  n / Enter            Next match
-  N                    Previous match
+  Enter                Confirm find (then n/N move)
+  n / N                Next / previous match
   Esc                  Close find / clear find / close View
   ← → / h l            Horizontal scroll (wide tables)
   Esc / q              Close
@@ -163,8 +163,8 @@ S3 Filer — キー操作一覧 (FD / FILMTN 風)
   e                    $EDITOR / $VISUAL で編集 (表示を再読込)
   t                    CSV/TSV: 表表示 ↔ テキスト切替
   /  または  Ctrl+F    テキスト検索 (インクリメンタル)
-  n / Enter            次の一致
-  N                    前の一致
+  Enter                検索を確定 (その後 n/N で移動)
+  n / N                次 / 前の一致
   Esc                  検索を閉じる / 解除 / View を閉じる
   ← → / h l            横スクロール (幅の広い表)
   Esc / q              閉じる

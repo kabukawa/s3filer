@@ -8,6 +8,7 @@ from typing import Optional
 
 from . import local_fs
 from .models import FileEntry, LocationKind, PaneState, PathLocation
+from .places import PLACES_ROOT, is_places_root, local_parent_path
 from .s3_client import S3Service, make_s3_uri, normalize_s3_dir, parse_s3_uri
 
 
@@ -32,10 +33,14 @@ def recover_local_path(path: str) -> tuple[str, Optional[str]]:
     Returns (resolved_path, note_or_None).
     """
     original = path
+    if is_places_root(path):
+        return PLACES_ROOT if os.name == "nt" else local_fs.normalize_local_path(os.sep), None
     try:
         p = local_fs.normalize_local_path(path)
     except Exception:
         p = path
+    if is_places_root(p):
+        return p, None
 
     seen: set[str] = set()
     while p and p not in seen:
@@ -102,6 +107,8 @@ def _ensure_parent_entry(entries: list[FileEntry], location: PathLocation) -> li
     # At true roots, still show .. for local (goes to parent drive/path) and S3 (s3://)
     if location.is_s3() and location.path in ("s3://", "s3:"):
         return entries
+    if location.is_local() and is_places_root(location.path):
+        return entries
     parent_path = location.path
     return [
         FileEntry(
@@ -127,7 +134,9 @@ def refresh_pane(state: PaneState, s3: Optional[S3Service] = None) -> PaneState:
     try:
         if state.location.is_local():
             path = state.location.path
-            if not _local_isdir(path):
+            if is_places_root(path):
+                path = PLACES_ROOT if os.name == "nt" else local_fs.normalize_local_path(os.sep)
+            elif not _local_isdir(path):
                 path, recovery_note = recover_local_path(path)
             else:
                 try:
@@ -244,10 +253,13 @@ def navigate_into(state: PaneState, s3: Optional[S3Service] = None) -> PaneState
 
     if state.location.is_local():
         if entry.name == "..":
-            parent = os.path.dirname(state.location.path.rstrip(os.sep))
-            if not parent:
-                parent = state.location.path
-            new_path = local_fs.normalize_local_path(parent)
+            if is_places_root(state.location.path):
+                return state
+            new_path = local_fs.normalize_local_path(
+                local_parent_path(state.location.path)
+            )
+        elif entry.target_path:
+            new_path = local_fs.normalize_local_path(entry.target_path)
         else:
             new_path = local_fs.normalize_local_path(
                 os.path.join(state.location.path, entry.name)

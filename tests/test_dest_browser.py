@@ -116,6 +116,34 @@ def test_dest_browser_toggle_local_s3() -> None:
     asyncio.run(main())
 
 
+def test_dest_browser_root_to_places() -> None:
+    if os.name != "nt":
+        return
+
+    from s3filer.places import is_places_root, is_volume_root
+
+    async def main() -> None:
+        left = tempfile.mkdtemp()
+        right = tempfile.mkdtemp()
+        app = S3FilerApp(left=left, right=right)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause(0.25)
+            await pilot.press("t")
+            await pilot.pause(0.3)
+            sc = app.screen
+            assert isinstance(sc, DestBrowserScreen)
+            sc.action_root()
+            await pilot.pause(0.2)
+            assert is_volume_root(sc._location.path) or is_places_root(sc._location.path)
+            if is_volume_root(sc._location.path):
+                sc.action_root()
+                await pilot.pause(0.2)
+            assert is_places_root(sc._location.path)
+            assert any(getattr(e, "target_path", None) for e in sc._dir_entries)
+
+    asyncio.run(main())
+
+
 def test_dest_browser_filter() -> None:
     async def main() -> None:
         root = tempfile.mkdtemp()

@@ -11,7 +11,9 @@ S3 Filer is a **dual-pane TUI file manager** inspired by classic FD/FILMTN tools
 
 - Browse **local** and **S3** side by side
 - Copy / move / delete / rename / view / edit / archives / commands / subshell
-- **SIXEL image view**, per-extension external viewers, Japanese / English UI
+- **Windows**: `\` switches drives, Box / OneDrive, and WSL
+- **View**: syntax highlight, **CSV/TSV tables**, **text search**, **SIXEL** images
+- Per-extension external viewers, Japanese / English UI
 - Settings persist in a user config file
 
 ---
@@ -59,7 +61,8 @@ sss.cmd -p myprofile
 | **k** / ↑ | Cursor up |
 | **Tab** | Switch pane |
 | **Enter** | Open dir / run executable / open archive / else View |
-| **Backspace** | Parent |
+| **Backspace** | Parent (from a drive root: This PC list) |
+| **\\** | Volume root; again for **This PC** (Windows: drives / Box / WSL). On Linux / macOS: `/` |
 | **Space** | Multi-select |
 
 ### Common operations
@@ -70,7 +73,7 @@ sss.cmd -p myprofile
 | **C** | Copy → destination browser |
 | **m** / F6 | Move → other pane |
 | **M** | Move → destination browser |
-| **v** / F3 | View (SIXEL for images when enabled) |
+| **v** / F3 | View (CSV/TSV table, `/` find, SIXEL for images) |
 | **e** (in View) | External editor |
 | **n** / F7 | Mkdir / S3 prefix |
 | **d** / F8 | Delete |
@@ -81,9 +84,34 @@ sss.cmd -p myprofile
 | **p** / F9 | AWS profile |
 | **t** / F10 | Browse & jump |
 | **u** | Settings |
-| **g** | Go to path |
+| **g** | Go to path (`D:\`, `thispc:`, UNC, `s3://…`) |
 | **Ctrl+L** / **s** | Local / S3 |
 | **f** | Refresh |
+
+### 3.1 Windows drives and places (This PC)
+
+On Windows the local side has a **This PC** list, analogous to S3’s `s3://` bucket list.
+
+**`\`**:
+
+1. First press → current volume / UNC share root (`C:\`, `\\wsl.localhost\Ubuntu-22.04`, …)
+2. Again (already at that root) → **This PC**
+
+**Backspace** / `..` from a drive root also returns to This PC. **g** accepts `thispc:` or `\`.
+
+This PC lists:
+
+| Kind | What appears |
+|------|----------------|
+| Drives | `C:` `D:` … with volume labels (including lettered cloud mounts such as Google Drive) |
+| Cloud folders | Places without a drive letter, e.g. **Box** (`%USERPROFILE%\Box`), **OneDrive** |
+| WSL | Each distro at `\\wsl.localhost\<name>` (often listable even when the distro is stopped) |
+
+- You cannot mkdir / delete / rename / copy on the This PC list itself — open a place first
+- The destination browser (`C` / `M` / `t`) uses the same `\`. On This PC, **s** / **g** confirms the highlighted drive or place
+- Linux / macOS do not show This PC; `\` goes to `/`
+
+**g** also accepts typed paths such as `D:\`, `\\server\share`, `\\wsl.localhost\Ubuntu-22.04\home`, `s3://bucket/`.
 
 ---
 
@@ -110,7 +138,7 @@ Change theme from Settings (not a dedicated status-bar key).
 
 | Mode | Behavior |
 |------|----------|
-| **Built-in** | Text with highlight; images via SIXEL when enabled; else HEX/etc. |
+| **Built-in** | Highlighted text; CSV/TSV tables; `/` find; SIXEL images when enabled; else HEX/etc. |
 | **External prefer** | Per-extension command when configured; else built-in |
 
 #### External viewer commands
@@ -161,10 +189,11 @@ Lists **one directory level** at a time (not a full expanded tree).
 | Key | Action |
 |-----|--------|
 | Enter / l | Open directory |
-| h / Backspace | Parent |
+| h / Backspace | Parent (from a drive root: This PC) |
+| **\\** | Volume root / This PC |
 | 1 / 2 | Local / S3 |
 | / | Filter |
-| **s** / **g** | Confirm **current** folder |
+| **s** / **g** | Confirm **current** folder; on This PC, the highlighted drive or place |
 | Esc | Cancel |
 
 ---
@@ -177,10 +206,34 @@ Rough priority:
 
 1. Per-extension **external viewer** if registered → background external app  
 2. Image + SIXEL enabled → **SIXEL fullscreen**  
-3. Else → built-in text / binary  
+3. Else → built-in text / CSV·TSV table / binary  
 
 - **e** in View: `$VISUAL` / `$EDITOR`; S3 download → upload if changed  
 - Text view reads the first ~512 KiB; SIXEL images allow larger payloads (capped)
+
+#### CSV / TSV tables
+
+Extensions `.csv` / `.tsv` / `.tab` open as a **table** in the built-in viewer (first row = header). Quoted commas and `;` delimiters are detected. The same applies to objects on S3 and members inside archives.
+
+| Key | Action |
+|-----|--------|
+| **t** | Table ↔ raw text |
+| **← →** / **h l** | Horizontal scroll for wide tables |
+
+Long cells are truncated; the table shows up to about 2000 rows and 64 columns. Use **t** for the full text.
+
+#### Find
+
+Substring search in the built-in viewer (including table mode). Case-insensitive; not a regular expression.
+
+| Key | Action |
+|-----|--------|
+| **/** or **Ctrl+F** | Focus the find field (incremental) |
+| **n** / **Enter** in the field | Next match |
+| **N** | Previous match |
+| **Esc** | Leave the field → clear highlights → close View |
+
+The header shows `find:2/5`. The current hit is bright yellow; others are darker yellow.
 
 ### Command (`!`)
 
@@ -228,7 +281,7 @@ Progress dialog (`Copy 2/5: name`) + status bar + toast on completion.
 
 If a local folder was deleted or a profile no longer sees a bucket/prefix, the app walks up to a valid parent or falls back to cwd / `s3://`.
 
-Manual: **f** refresh · **Ctrl+L** · **s** · **g**
+Manual: **f** refresh · **\\** (This PC on Windows) · **Ctrl+L** · **s** · **g** (`thispc:` / UNC / `s3://`)
 
 ---
 
@@ -237,7 +290,10 @@ Manual: **f** refresh · **Ctrl+L** · **s** · **g**
 | Symptom | What to try |
 |---------|-------------|
 | S3 auth / ExpiredToken | `aws sso login --profile …` or update keys; switch profile **p** |
-| Empty pane / stuck | **f**, **Ctrl+L**, **s**, **g** |
+| Empty pane / stuck | **f**, **\\**, **Ctrl+L**, **s**, **g** |
+| Need another drive, Box, or WSL | **\\** for This PC, or type a UNC / `D:\` in **g** |
+| WSL folder will not open | Check the distro name; **g** to `\\wsl.localhost\<name>`. First open may start the distro |
+| Box / OneDrive copy is slow | Online-only files hydrate (download) on open or copy |
 | Extract “not found” | Check extract path in status (other pane); use Space to select files |
 | External viewer fails | Settings **u** → command + `{}`; PATH; under Git Bash check path form |
 | Images open as binary dump | **u** → SIXEL force ON; use Windows Terminal / WezTerm; install Pillow for **this** Python |
@@ -251,7 +307,10 @@ Manual: **f** refresh · **Ctrl+L** · **s** · **g**
 ## 12. Cautions
 
 - Buckets are not deleted by this tool  
+- Text View shows only the start of large files (~512 KiB); tables also cap rows/columns  
 - View/edit/run of large S3 objects uses temp downloads with size limits  
+- Box / OneDrive / Google Drive online-only files may hydrate when opened or copied  
+- WSL paths go through 9P from Windows (listing/copy can be slow). Special files such as `/proc` are not usable  
 - Be careful on production accounts  
 
 ---

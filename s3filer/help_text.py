@@ -17,6 +17,7 @@ Navigation (Vim-style + arrows)
   PgUp / PgDn          Page cursor in list
   Enter                Open directory / View file
   Backspace            Go to parent directory
+  \\                   Volume root; again for This PC (drives / Box / WSL)
   Space / Insert       Toggle multi-select (* mark)
   *                    Select all files (not dirs)
   Ctrl+A               Select all / clear selection
@@ -27,6 +28,8 @@ Operations (letter key  OR  function key)
   m / F6               Move  → other pane
   M (Shift+m)          Move  → browse destination
   v / F3               View file contents (syntax highlight)
+                       CSV/TSV: table view (t toggles raw text)
+                       / or Ctrl+F: find text · n/N next/prev
                        Images: SIXEL when the terminal supports it
   e (in View)          Open in external editor (EDITOR/VISUAL)
                        Local: edit in place  |  S3: download → edit → upload
@@ -54,6 +57,12 @@ Help / View scroll
   b / PgUp             Page up
   Home / End           Top / bottom
   e                    Edit with $EDITOR / $VISUAL (then reload View)
+  t                    CSV/TSV: toggle table ↔ raw text
+  /  or  Ctrl+F        Find text (incremental)
+  n / Enter            Next match
+  N                    Previous match
+  Esc                  Close find / clear find / close View
+  ← → / h l            Horizontal scroll (wide tables)
   Esc / q              Close
 
 Editor
@@ -69,6 +78,7 @@ Themes (Settings → u)
 Destination browser (C / M / t)
   Enter / l            Open directory under cursor
   h / Backspace        Parent directory (..)
+  \\                   Volume root / This PC (drives, Box, WSL)
   j k / ↑ ↓            Move cursor
   1 / Local button     Switch to local filesystem
   2 / S3 button        Switch to S3 (s3:// or last S3 path)
@@ -111,6 +121,7 @@ S3 Filer — キー操作一覧 (FD / FILMTN 風)
   PgUp / PgDn          リストをページ単位で移動
   Enter                ディレクトリを開く / ファイルを表示
   Backspace            親ディレクトリへ
+  \\                   ドライブ直下。もう一度で PC 一覧 (ドライブ / Box / WSL)
   Space / Insert       複数選択の切替 (* マーク)
   *                    ファイルを全選択 (ディレクトリ除く)
   Ctrl+A               全選択 / 選択解除
@@ -121,6 +132,8 @@ S3 Filer — キー操作一覧 (FD / FILMTN 風)
   m / F6               移動 → 反対ペイン
   M (Shift+m)          移動 → 移動先をブラウズ
   v / F3               ファイル内容を表示 (シンタックスハイライト)
+                       CSV/TSV: 表表示 (t でテキスト切替)
+                       / または Ctrl+F で検索 · n/N で次/前
                        画像: 端末が対応していれば SIXEL で表示
   e (表示中)           外部エディタで開く (EDITOR/VISUAL)
                        ローカル: 直接編集  |  S3: ダウンロード → 編集 → アップロード
@@ -148,6 +161,12 @@ S3 Filer — キー操作一覧 (FD / FILMTN 風)
   b / PgUp             ページ上
   Home / End           先頭 / 末尾
   e                    $EDITOR / $VISUAL で編集 (表示を再読込)
+  t                    CSV/TSV: 表表示 ↔ テキスト切替
+  /  または  Ctrl+F    テキスト検索 (インクリメンタル)
+  n / Enter            次の一致
+  N                    前の一致
+  Esc                  検索を閉じる / 解除 / View を閉じる
+  ← → / h l            横スクロール (幅の広い表)
   Esc / q              閉じる
 
 エディタ
@@ -163,6 +182,7 @@ S3 Filer — キー操作一覧 (FD / FILMTN 風)
 移動先ブラウザ (C / M / t)
   Enter / l            カーソル下のディレクトリを開く
   h / Backspace        親ディレクトリ (..)
+  \\                   ドライブ直下 / PC 一覧 (ドライブ、Box、WSL)
   j k / ↑ ↓            カーソル移動
   1 / Local ボタン     ローカルファイルシステムへ
   2 / S3 ボタン        S3 へ (s3:// または直前の S3 パス)

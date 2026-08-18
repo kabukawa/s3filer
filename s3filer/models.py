@@ -24,6 +24,12 @@ class PathLocation:
 
     def display(self) -> str:
         if self.kind == LocationKind.LOCAL:
+            from .places import is_places_root
+
+            if is_places_root(self.path):
+                from .i18n import t
+
+                return t("places_root")
             return self.path
         prof = f" [{self.profile}]" if self.profile else ""
         return f"{self.path}{prof}"
@@ -68,9 +74,11 @@ class FileEntry:
     key: Optional[str] = None
     # Parent path for navigation
     parent_path: str = ""
-    # Storage class / extra
+    # Storage class / extra (S3), or DRIVE / CLOUD / WSL on the places list
     storage_class: Optional[str] = None
     etag: Optional[str] = None
+    # Real filesystem path when *name* is only a label (This PC rows)
+    target_path: Optional[str] = None
 
     @property
     def display_name(self) -> str:
@@ -89,6 +97,8 @@ class FileEntry:
         # local
         import os
 
+        if self.target_path:
+            return self.target_path
         if self.name == "..":
             return os.path.dirname(self.parent_path.rstrip(os.sep)) or self.parent_path
         return os.path.join(self.parent_path, self.name)

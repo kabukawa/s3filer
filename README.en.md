@@ -10,7 +10,8 @@ The launcher command is **`sss`** (three s’s ≈ S3).
 
 - **Dual panes** for local / S3 (FD/FILMTN-style keys)
 - Copy / move / delete / rename / mkdir
-- **View**: syntax-highlighted text; **images via SIXEL** on capable terminals
+- **Windows**: `\` switches drives and places (`C:`, Box / OneDrive, WSL `\\wsl.localhost\…`)
+- **View**: syntax-highlighted text, **CSV/TSV tables**, **`/` find**, **SIXEL** images on capable terminals
 - Per-extension **external viewers** (run in the background; filer UI stays up)
 - External editor (`$VISUAL` / `$EDITOR`), archives, shell commands, subshell
 - Settings (**u**): language, theme, viewers, archive extract, **SIXEL**, edit config file

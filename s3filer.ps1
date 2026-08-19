@@ -52,7 +52,7 @@ if ($PSScriptRoot) {
 } else {
     $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 }
-Set-Location -LiteralPath $Root
+# Do not Set-Location to $Root: default local pane is os.getcwd() (the caller's directory).
 
 function Resolve-Python {
     $candidates = @(
@@ -88,35 +88,50 @@ Or create a venv in this folder:
 "@
 }
 
-function Test-S3FilerModule {
+function Test-TextualInstalled {
     param([string]$PythonExe)
-    & $PythonExe -c "import s3filer" 2>$null
-    return ($LASTEXITCODE -eq 0)
+    # Filesystem-only: do not spawn Python (import textual ~400ms, Pillow ~300ms).
+    $leaf = Split-Path -Leaf $PythonExe
+    if ($leaf -eq 'py.exe') { return $false }
+    $prefix = Split-Path -Parent (Split-Path -Parent $PythonExe)
+    $direct = @(
+        (Join-Path $prefix 'Lib\site-packages\textual'),
+        (Join-Path $prefix 'lib\site-packages\textual')
+    )
+    foreach ($p in $direct) {
+        if (Test-Path -LiteralPath $p) { return $true }
+    }
+    $lib = Join-Path $prefix 'lib'
+    if (Test-Path -LiteralPath $lib) {
+        $hits = Get-ChildItem -Path $lib -Directory -Filter 'python*' -ErrorAction SilentlyContinue
+        foreach ($dir in $hits) {
+            if (Test-Path -LiteralPath (Join-Path $dir.FullName 'site-packages\textual')) {
+                return $true
+            }
+        }
+    }
+    return $false
+}
+
+function Test-ProjectVenvPython {
+    param([string]$PythonExe)
+    return $PythonExe -match '[\\/]\.venv[\\/]Scripts[\\/]python(\.exe)?$' -or
+        $PythonExe -match '[\\/]venv[\\/]Scripts[\\/]python(\.exe)?$'
 }
 
 $python = Resolve-Python
 $env:PYTHONPATH = if ($env:PYTHONPATH) { "$Root;$env:PYTHONPATH" } else { $Root }
 
-# Ensure package is importable; give a clear install hint if not
-if (-not (Test-S3FilerModule -PythonExe $python)) {
-    Write-Host "s3filer package not installed for: $python" -ForegroundColor Yellow
+# Hot path: no extra Python processes. Source tree is on PYTHONPATH.
+# Auto-install only when the selected interpreter is a project venv that
+# does not yet have textual (first run after `python -m venv .venv`).
+# Pillow is optional (SIXEL) and is checked when viewing an image.
+if ((Test-ProjectVenvPython -PythonExe $python) -and -not (Test-TextualInstalled -PythonExe $python)) {
     Write-Host "Installing dependencies into this interpreter..." -ForegroundColor Yellow
     & $python -m pip install -r (Join-Path $Root 'requirements.txt')
     if ($LASTEXITCODE -ne 0) { throw "pip install requirements failed (exit $LASTEXITCODE)" }
     & $python -m pip install -e $Root
     if ($LASTEXITCODE -ne 0) { throw "pip install -e . failed (exit $LASTEXITCODE)" }
-}
-
-# Pillow is required for SIXEL image view — install into *this* Python if missing
-# (pip3 may target a different interpreter than the one Resolve-Python selected)
-& $python -c "from PIL import Image" 2>$null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Pillow not found for: $python — installing..." -ForegroundColor Yellow
-    & $python -m pip install "pillow>=10.0.0"
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Warning: Pillow install failed. Image (SIXEL) view will be unavailable." -ForegroundColor Yellow
-        Write-Host "  Fix:  $python -m pip install pillow" -ForegroundColor Yellow
-    }
 }
 
 $argList = [System.Collections.Generic.List[string]]::new()

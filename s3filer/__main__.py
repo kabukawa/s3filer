@@ -95,6 +95,20 @@ def main(argv: list[str] | None = None) -> int:
             os.environ["S3FILER_THEME"] = name
 
     try:
+        # Overlap boto3 import (~0.6s) with Textual import inside run_app.
+        # Default right pane is s3://, so this is on the critical path.
+        import threading
+
+        def _warmup_boto3() -> None:
+            try:
+                import boto3  # noqa: F401
+            except Exception:
+                pass
+
+        threading.Thread(
+            target=_warmup_boto3, daemon=True, name="s3filer-boto3"
+        ).start()
+
         from .app import run_app
 
         run_app(profile=args.profile, left=args.left, right=args.right)

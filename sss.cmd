@@ -2,7 +2,7 @@
 setlocal EnableExtensions
 REM sss - S3 Filer launcher for Windows cmd
 REM PowerShell users: run  .\sss.ps1
-cd /d "%~dp0"
+REM Keep the caller's cwd so the left pane opens there.
 
 set "PS_EXE="
 where pwsh >nul 2>&1

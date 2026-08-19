@@ -82,6 +82,10 @@ _MSG: dict[str, dict[str, str]] = {
         "ja": "(空 — Ctrl+L ローカル · Ctrl+S S3 · g 移動 · f 再読込)",
         "en": "(empty — Ctrl+L local · Ctrl+S S3 · g go · f refresh)",
     },
+    "pane_loading": {
+        "ja": "(読み込み中…)",
+        "en": "(loading…)",
+    },
     "viewer_cmd_list_title": {
         "ja": "外部ビューアコマンド一覧",
         "en": "External viewer commands",

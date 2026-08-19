@@ -194,8 +194,10 @@ def iter_drive_places() -> list[Place]:
     places: list[Place] = []
     for root in list_drive_letters():
         letter = root[:2] if len(root) >= 2 else root.rstrip("\\")
-        label = _short(_volume_label(root))
         dtype = _drive_type_name(root)
+        # GetVolumeInformationW on a disconnected network drive can hang
+        # for tens of seconds; skip labels for REMOTE.
+        label = "" if dtype == "REMOTE" else _short(_volume_label(root))
         extra = label
         if dtype in ("REMOVABLE", "REMOTE", "CDROM", "RAMDISK") and not extra:
             extra = dtype
@@ -311,11 +313,10 @@ def list_wsl_distros() -> list[str]:
 def iter_wsl_places() -> list[Place]:
     places: list[Place] = []
     for distro in list_wsl_distros():
-        for base in (r"\\wsl.localhost", r"\\wsl$"):
-            path = f"{base}\\{distro}"
-            if _isdir(path):
-                places.append(Place(name=f"WSL  {distro}", path=path, kind="WSL"))
-                break
+        # Do not os.path.isdir() on \\wsl.localhost — that can start WSL
+        # or hang for many seconds when the distro is stopped.
+        path = f"\\\\wsl.localhost\\{distro}"
+        places.append(Place(name=f"WSL  {distro}", path=path, kind="WSL"))
     return places
 
 

@@ -4,6 +4,7 @@
 起動コマンドは **`sss`**（s が 3 つ = S3）です。
 
 > 使い方・機能詳細・トラブルシュートは **[MANUAL.md](MANUAL.md)**（日本語・メイン）を参照してください。  
+> 更新履歴: **[HISTORY.md](HISTORY.md)**  
 > English: [README.en.md](README.en.md) · [MANUAL.en.md](MANUAL.en.md)
 
 ## 主な機能
@@ -44,7 +45,7 @@ python3 -m pip install -e .
 ```
 
 venv は必須ではありません。`sss` は `.venv` があればそれを使い、なければ PATH の Python を使います。  
-未導入時は依存関係の自動インストールを試みます（**Pillow も含む**）。
+プロジェクトの `.venv` が空のときは依存関係を自動インストールします（毎回の起動では Python を追加起動しません）。Pillow は画像表示時に必要なら案内します。
 
 > 画像表示で「Pillow が必要」と出る場合は、**s3filer を動かしている同じ Python** に入れてください。  
 > `pip3` ではなく例: `python -m pip install pillow`（メッセージに出るパスを推奨）

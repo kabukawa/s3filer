@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 REM S3 Filer - Windows cmd fallback launcher
-cd /d "%~dp0"
+REM Keep the caller's cwd so the left pane opens there.
 
 where powershell >nul 2>&1
 if %ERRORLEVEL%==0 (
@@ -24,8 +24,9 @@ if not defined PY (
 )
 
 set "PYTHONPATH=%~dp0;%PYTHONPATH%"
-%PY% -c "import s3filer" 2>nul
-if errorlevel 1 (
+REM Do not spawn Python to probe imports (adds hundreds of ms every launch).
+REM Auto-install only for an empty project venv.
+if exist "%~dp0.venv\Scripts\python.exe" if not exist "%~dp0.venv\Lib\site-packages\textual\" (
   echo Installing s3filer dependencies...
   %PY% -m pip install -r "%~dp0requirements.txt"
   if errorlevel 1 exit /b 1

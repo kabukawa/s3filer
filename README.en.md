@@ -4,6 +4,7 @@ A **dual-pane console file manager** for local files and Amazon S3.
 The launcher command is **`sss`** (three s’s ≈ S3).
 
 > Full usage, feature details, and troubleshooting: **[MANUAL.en.md](MANUAL.en.md)**.  
+> Changelog: **[HISTORY.md](HISTORY.md)** (Japanese).  
 > Japanese (primary docs): [README.md](README.md) · [MANUAL.md](MANUAL.md)
 
 ## Highlights
@@ -42,7 +43,7 @@ python3 -m pip install -r requirements.txt
 python3 -m pip install -e .
 ```
 
-A venv is optional. The `sss` launcher prefers `.venv` when present, otherwise uses Python on `PATH`, and may auto-install dependencies (including **Pillow**).
+A venv is optional. The `sss` launcher prefers `.venv` when present, otherwise uses Python on `PATH`. An empty project `.venv` is auto-installed; launchers no longer spawn extra Python processes on every start. Pillow is prompted for when viewing an image.
 
 > If the app says Pillow is missing, install it for the **same Python that runs s3filer**:  
 > prefer `python -m pip install pillow` (not a different `pip3`).

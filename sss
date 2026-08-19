@@ -7,5 +7,5 @@
 #
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$ROOT"
+# Keep the caller's cwd — the filer opens the left pane there.
 exec "$ROOT/s3filer.sh" "$@"

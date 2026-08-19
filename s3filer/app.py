@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 import unicodedata
 from datetime import datetime
 from typing import Optional
@@ -271,6 +272,9 @@ class S3FilerApp(App[None]):
             PaneState(location=left_loc),
             PaneState(location=right_loc),
         ]
+        # Background S3 listing (overlaps Textual driver startup).
+        self._s3_prefetch_event: Optional[threading.Event] = None
+        self._s3_prefetch_result: Optional[list[tuple[int, str, PaneState]]] = None
 
     def _parse_start(self, path: str) -> PathLocation:
         path = path.strip()
@@ -334,13 +338,18 @@ class S3FilerApp(App[None]):
             self.theme = DEFAULT_THEME
         self._current_theme = preferred
 
-        # Load local pane first (usually instant), S3 in parallel when needed.
-        self._reload_both()
+        # Local listing is cheap — paint immediately. S3 (boto3 + list_buckets)
+        # is ~1.5s and must not block the first frame.
+        self._reload_local_panes()
         self._ui_ready = True
         self._focus_active()
         # First paint often happens before layout settles; reflow once if width changed.
         self.call_after_refresh(self._reflow_lists_if_needed)
         self.query_one("#title-bar", Static).update(self._title_text())
+        if any(p.location.is_s3() for p in self.panes):
+            if self._s3_prefetch_event is None:
+                self.start_background_s3_refresh()
+            self._apply_s3_prefetch_when_ready()
 
     def on_resize(self) -> None:
         # Terminal / split size changed — reflow rows to new column widths.
@@ -365,20 +374,89 @@ class S3FilerApp(App[None]):
         if changed:
             self._reflow_lists()
 
+    def start_background_s3_refresh(self) -> None:
+        """
+        Start listing S3 panes on a daemon thread.
+
+        Call before ``app.run()`` so boto3 + list_buckets overlap Textual
+        driver startup. Results are applied from ``on_mount`` without
+        mutating a pane the user has already navigated away from.
+        """
+        indexes = [i for i, p in enumerate(self.panes) if p.location.is_s3()]
+        event = threading.Event()
+        self._s3_prefetch_event = event
+        self._s3_prefetch_result = None
+        if not indexes:
+            event.set()
+            return
+        for i in indexes:
+            self.panes[i].loading = True
+
+        def _load() -> None:
+            result: list[tuple[int, str, PaneState]] = []
+            try:
+                for i in indexes:
+                    loc = self.panes[i].location
+                    tmp = PaneState(location=loc)
+                    refresh_pane(tmp, self.s3)
+                    result.append((i, loc.path, tmp))
+            finally:
+                self._s3_prefetch_result = result
+                event.set()
+
+        threading.Thread(
+            target=_load, daemon=True, name="s3filer-s3-prefetch"
+        ).start()
+
+    def _reload_local_panes(self) -> None:
+        for i, pane in enumerate(self.panes):
+            if pane.location.is_s3():
+                pane.loading = True
+                self._render_pane(i, force_list=True, update_chrome=False)
+                continue
+            refresh_pane(pane, self.s3)
+            self._render_pane(i, force_list=True, update_chrome=False)
+        self._update_active_chrome()
+
+    @work(thread=True, exclusive=True, group="s3-prefetch")
+    def _apply_s3_prefetch_when_ready(self) -> None:
+        event = self._s3_prefetch_event
+        if event is not None:
+            event.wait()
+        result = list(self._s3_prefetch_result or [])
+        self.call_from_thread(self._apply_s3_prefetch, result)
+
+    def _apply_s3_prefetch(self, result: list[tuple[int, str, PaneState]]) -> None:
+        for index, started_path, tmp in result:
+            pane = self.panes[index]
+            if not pane.location.is_s3() or pane.location.path != started_path:
+                pane.loading = False
+                continue
+            pane.entries = tmp.entries
+            pane.error = tmp.error
+            pane.cursor = tmp.cursor
+            pane.selected = tmp.selected
+            pane.location = tmp.location
+            pane.loading = False
+            self._render_pane(index, force_list=True, update_chrome=False)
+        self.query_one("#title-bar", Static).update(self._title_text())
+        self._update_active_chrome()
+
     def _reload_both(self) -> None:
-        # Parallel refresh: local listing + S3 API often dominate startup time.
+        # Used after profile switch — wait for both panes (user is blocked
+        # by the profile dialog callback anyway).
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         def _one(i: int) -> int:
             refresh_pane(self.panes[i], self.s3)
             return i
 
-        # Always use a small pool so left (local) and right (S3) overlap.
         with ThreadPoolExecutor(max_workers=2) as pool:
             futs = [pool.submit(_one, i) for i in (0, 1)]
             for _ in as_completed(futs):
                 pass
         for i in (0, 1):
+            self.panes[i].loading = False
             self._render_pane(i, force_list=True, update_chrome=False)
         self.query_one("#title-bar", Static).update(self._title_text())
         self._update_active_chrome()
@@ -469,6 +547,8 @@ class S3FilerApp(App[None]):
             options: list[Option] = []
             selected = state.selected
             entries = state.entries
+            if state.loading and not entries:
+                options.append(Option(t("pane_loading"), id="loading"))
             for i, entry in enumerate(entries):
                 label = _format_row(entry, entry.name in selected, width=width)
                 options.append(Option(label, id=f"e{i}"))
@@ -490,20 +570,23 @@ class S3FilerApp(App[None]):
                     ol.clear_options()
                     ol.add_options(empty)
 
-        sel_n = len(state.selected)
-        err = t("pane_err", err=state.error) if state.error else ""
-        total_files = 0
-        total_dirs = 0
-        for e in state.entries:
-            if e.name == "..":
-                continue
-            if e.is_dir:
-                total_dirs += 1
-            else:
-                total_files += 1
-        self.query_one(f"#stat-{index}", Static).update(
-            t("pane_stat", dirs=total_dirs, files=total_files, sel=sel_n, err=err)
-        )
+        if state.loading and not state.entries:
+            self.query_one(f"#stat-{index}", Static).update(" " + t("please_wait"))
+        else:
+            sel_n = len(state.selected)
+            err = t("pane_err", err=state.error) if state.error else ""
+            total_files = 0
+            total_dirs = 0
+            for e in state.entries:
+                if e.name == "..":
+                    continue
+                if e.is_dir:
+                    total_dirs += 1
+                else:
+                    total_files += 1
+            self.query_one(f"#stat-{index}", Static).update(
+                t("pane_stat", dirs=total_dirs, files=total_files, sel=sel_n, err=err)
+            )
         if update_chrome:
             self._update_active_chrome()
 
@@ -1580,4 +1663,7 @@ def run_app(
     right: Optional[str] = None,
 ) -> None:
     app = S3FilerApp(profile=profile, left=left, right=right)
+    # Start S3 listing before the Textual driver comes up so first paint
+    # is not gated on boto3 + list_buckets (~1.5s here).
+    app.start_background_s3_refresh()
     app.run()

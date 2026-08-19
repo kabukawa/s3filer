@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from datetime import datetime, timezone
 from typing import Any, Optional
 from urllib.parse import unquote
@@ -67,25 +68,30 @@ class S3Service:
         )
         self._session: Any = None
         self._client: Any = None
+        self._client_lock = threading.Lock()
 
     def _ensure_client(self) -> Any:
         if self._client is not None:
             return self._client
-        from botocore.exceptions import BotoCoreError, ClientError  # noqa: F401
-        from .aws_profiles import create_session, resolve_region
+        with self._client_lock:
+            if self._client is not None:
+                return self._client
+            from botocore.exceptions import BotoCoreError, ClientError  # noqa: F401
+            from .aws_profiles import create_session, resolve_region
 
-        self._session = create_session(self.profile, self.region)
-        self.region = resolve_region(self._session, self.region)
-        self._client = self._session.client("s3", region_name=self.region)
-        return self._client
+            self._session = create_session(self.profile, self.region)
+            self.region = resolve_region(self._session, self.region)
+            self._client = self._session.client("s3", region_name=self.region)
+            return self._client
 
     def refresh(self, profile: Optional[str] = None, region: Optional[str] = None) -> None:
         if profile is not None:
             self.profile = profile
         if region is not None:
             self.region = region
-        self._session = None
-        self._client = None
+        with self._client_lock:
+            self._session = None
+            self._client = None
         # Eager reconnect when profile is switched so the next list is correct
         self._ensure_client()
 

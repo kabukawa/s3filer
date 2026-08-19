@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$ROOT"
+# Do not cd to $ROOT: default local pane is os.getcwd() (the caller's directory).
 
 if [[ -d "$ROOT/.venv" ]]; then
   # shellcheck disable=SC1091
@@ -52,20 +52,43 @@ resolve_python() {
   exit 1
 }
 
+# Filesystem-only: do not spawn Python just to probe imports
+# (import textual ~400ms, Pillow ~300ms on every launch).
+textual_installed() {
+  local py="$1"
+  local prefix
+  prefix="$(cd "$(dirname "$py")/.." && pwd)"
+  if [[ -d "$prefix/Lib/site-packages/textual" || -d "$prefix/lib/site-packages/textual" ]]; then
+    return 0
+  fi
+  local d
+  for d in "$prefix"/lib/python*/site-packages/textual; do
+    if [[ -d "$d" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+is_project_venv_python() {
+  local py="$1"
+  case "$py" in
+    "$ROOT/.venv/bin/python"|"$ROOT/.venv/bin/python3"|"$ROOT/.venv/Scripts/python.exe"|"$ROOT/.venv/Scripts/python"|"$ROOT/venv/Scripts/python.exe"|"$ROOT/venv/Scripts/python")
+      return 0
+      ;;
+  esac
+  return 1
+}
+
 ensure_package() {
   local py="$1"
-  if ! "$py" -c "import s3filer" >/dev/null 2>&1; then
+  # Hot path: source tree is on PYTHONPATH. Auto-install only when the
+  # selected interpreter is a project venv that does not yet have textual.
+  # Pillow is optional (SIXEL) and is checked when viewing an image.
+  if is_project_venv_python "$py" && ! textual_installed "$py"; then
     echo "Installing s3filer dependencies..." >&2
     "$py" -m pip install -r "$ROOT/requirements.txt"
     "$py" -m pip install -e "$ROOT"
-  fi
-  # Pillow for SIXEL image view — must match *this* interpreter (not plain pip3)
-  if ! "$py" -c "from PIL import Image" >/dev/null 2>&1; then
-    echo "Installing Pillow for image view ($py)..." >&2
-    "$py" -m pip install "pillow>=10.0.0" || {
-      echo "Warning: Pillow install failed. SIXEL image view unavailable." >&2
-      echo "  Fix:  $py -m pip install pillow" >&2
-    }
   fi
 }
 
